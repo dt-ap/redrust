@@ -1,4 +1,4 @@
-use std::{io::Write, net::TcpStream, string::String};
+use std::{io::Write, string::String};
 
 use anyhow::anyhow;
 
@@ -7,7 +7,7 @@ use super::{
     resp::{encode, Value},
 };
 
-pub fn ping(args: Vec<String>, mut stream: &TcpStream) -> anyhow::Result<()> {
+pub fn ping(args: Vec<String>, stream: &mut impl Write) -> anyhow::Result<()> {
     if args.len() >= 2 {
         return Err(anyhow!("ERR wrong number of arguments for 'ping' commands"));
     }
@@ -23,9 +23,7 @@ pub fn ping(args: Vec<String>, mut stream: &TcpStream) -> anyhow::Result<()> {
     return Ok(());
 }
 
-pub fn respond(cmd: Command, stream: &TcpStream) -> anyhow::Result<()> {
-    println!("Command: {}", cmd.cmd);
-
+pub fn respond(cmd: Command, stream: &mut impl Write) -> anyhow::Result<()> {
     return match cmd.cmd.as_str() {
         "PING" => ping(cmd.args.clone(), stream),
         _ => ping(cmd.args.clone(), stream),

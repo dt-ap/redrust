@@ -1,7 +1,6 @@
-use std::{
-    io::{self, Read, Write},
-    net::{Shutdown, TcpListener, TcpStream},
-};
+use std::io;
+
+use std::net::{Shutdown, TcpListener};
 
 use crate::{
     config::Config,
@@ -9,8 +8,11 @@ use crate::{
     error::EOFError,
 };
 
-fn read_command(mut stream: &TcpStream) -> anyhow::Result<Command> {
-    let mut buf = [0u8; 512];
+pub trait Stream: io::Write + io::Read {}
+impl<T> Stream for T where T: io::Write + io::Read {}
+
+pub fn read_command(stream: &mut impl Stream) -> anyhow::Result<Command> {
+    let mut buf: [u8; 512] = [0u8; 512];
 
     let bytes = stream.read(&mut buf)?;
     if bytes == 0 {
@@ -25,11 +27,11 @@ fn read_command(mut stream: &TcpStream) -> anyhow::Result<Command> {
     });
 }
 
-fn respond_error(err: anyhow::Error, mut stream: &TcpStream) -> io::Result<()> {
+fn respond_error(err: anyhow::Error, stream: &mut impl Stream) -> io::Result<()> {
     return stream.write(format!("-{}\r\n", err).as_bytes()).and(Ok(()));
 }
 
-fn respond(cmd: Command, stream: &TcpStream) -> io::Result<()> {
+pub fn respond(cmd: Command, stream: &mut impl Stream) -> io::Result<()> {
     return match eval::respond(cmd, stream) {
         Ok(_) => Ok(()),
         Err(err) => respond_error(err, stream),
@@ -47,30 +49,23 @@ pub fn run(conf: Config) -> io::Result<()> {
     let listener = TcpListener::bind(format!("{0}:{1}", conf.host, conf.port))?;
 
     loop {
-        let (stream, _) = match listener.accept() {
+        let (mut stream, _) = match listener.accept() {
             Ok(s) => s,
-            Err(err) => panic!("{:?}", err),
+            Err(err) => {
+                println!("Err: {:?}", err);
+                continue;
+            }
         };
 
-        let address = stream.peer_addr()?;
-
         con_clients += 1;
-        println!(
-            "Client connected with address: {0} concurrent clients {1}",
-            address, con_clients
-        );
 
         loop {
-            let cmd = match read_command(&stream) {
+            let cmd = match read_command(&mut stream) {
                 Ok(res) => res,
                 Err(err) => {
                     stream.shutdown(Shutdown::Both)?;
 
                     con_clients -= 1;
-                    println!(
-                        "Client disconnected {0} concurrent clients {1}",
-                        address, con_clients
-                    );
 
                     if err.is::<EOFError>() {
                         break;
@@ -81,7 +76,7 @@ pub fn run(conf: Config) -> io::Result<()> {
                 }
             };
 
-            respond(cmd, &stream)?;
+            respond(cmd, &mut stream)?;
         }
     }
 }
