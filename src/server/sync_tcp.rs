@@ -1,26 +1,39 @@
 use std::{
-    error::Error,
     io::{self, Read, Write},
     net::{Shutdown, TcpListener, TcpStream},
-    result::Result,
 };
 
-use crate::{config::Config, error::EOFError};
+use crate::{
+    config::Config,
+    core::{cmd::Command, eval, resp::decode_array_string},
+    error::EOFError,
+};
 
-fn read_command(mut stream: &TcpStream) -> Result<String, Box<dyn Error>> {
+fn read_command(mut stream: &TcpStream) -> anyhow::Result<Command> {
     let mut buf = [0u8; 512];
 
     let bytes = stream.read(&mut buf)?;
     if bytes == 0 {
-        return Err(Box::new(EOFError));
+        return Err(EOFError.into());
     }
-    let res = String::from_utf8(buf[..bytes].to_vec())?;
 
-    return Ok(res);
+    let tokens = decode_array_string(&buf[..bytes])?;
+
+    return Ok(Command {
+        cmd: tokens[0].to_uppercase(),
+        args: tokens[1..].to_vec(),
+    });
 }
 
-fn respond(cmd: String, mut stream: &TcpStream) -> io::Result<()> {
-    return stream.write(cmd.as_bytes()).and(Ok(()));
+fn respond_error(err: anyhow::Error, mut stream: &TcpStream) -> io::Result<()> {
+    return stream.write(format!("-{}\r\n", err).as_bytes()).and(Ok(()));
+}
+
+fn respond(cmd: Command, stream: &TcpStream) -> io::Result<()> {
+    return match eval::respond(cmd, stream) {
+        Ok(_) => Ok(()),
+        Err(err) => respond_error(err, stream),
+    };
 }
 
 pub fn run(conf: Config) -> io::Result<()> {
@@ -68,10 +81,7 @@ pub fn run(conf: Config) -> io::Result<()> {
                 }
             };
 
-            println!("Command {}", cmd);
-            respond(cmd, &stream).unwrap_or_else(|err| {
-                println!("Err write: {}", err);
-            });
+            respond(cmd, &stream)?;
         }
     }
 }

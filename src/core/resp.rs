@@ -29,7 +29,10 @@ fn read_length(data: &[u8]) -> (usize, i32) {
 
 fn read_simple_string(data: &[u8]) -> Result {
     let mut pos = 1_usize;
-    while data[pos] != b'\r' {
+    for d in data.iter().skip(pos) {
+        if *d == b'\r' {
+            break;
+        }
         pos += 1;
     }
 
@@ -97,6 +100,31 @@ pub fn decode_one(data: &[u8]) -> Result {
     };
 }
 
+pub fn decode_array_string(data: &[u8]) -> anyhow::Result<Vec<String>> {
+    let value = decode(data)?;
+    let vr: Vec<Value>;
+
+    if let Value::Vector(r) = value {
+        vr = r;
+    } else {
+        return Err(anyhow!("Value is not a Vec type"));
+    }
+
+    let len = vr.len();
+    let mut elems: Vec<String> = Vec::with_capacity(len);
+    for i in 0..len {
+        let v = &vr[i];
+
+        if let Value::String(r) = v {
+            elems.push(r.to_string())
+        } else {
+            return Err(anyhow!("Value is not a String type"));
+        }
+    }
+
+    return Ok(elems);
+}
+
 pub fn decode(data: &[u8]) -> anyhow::Result<Value> {
     if data.len() == 0 {
         return Err(anyhow!("No data"));
@@ -104,6 +132,18 @@ pub fn decode(data: &[u8]) -> anyhow::Result<Value> {
 
     let (_, value) = decode_one(data)?;
     return Ok(value);
+}
+
+pub fn encode(value: Value, simple: bool) -> Vec<u8> {
+    if let Value::String(s) = value {
+        if simple {
+            return format!("+{}\r\n", s).into_bytes();
+        }
+
+        return format!("${0}\r\n{1}\r\n", s.len(), s).into_bytes();
+    }
+
+    return vec![];
 }
 
 #[cfg(test)]
@@ -162,20 +202,12 @@ mod tests {
             ),
             (
                 "*3\r\n:1\r\n:2\r\n:3\r\n".to_owned(),
-                Value::Vector(vec![
-                    Value::Int64(1),
-                    Value::Int64(2),
-                    Value::Int64(3),
-                ]),
+                Value::Vector(vec![Value::Int64(1), Value::Int64(2), Value::Int64(3)]),
             ),
             (
                 "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n".to_owned(),
                 Value::Vector(vec![
-                    Value::Vector(vec![
-                        Value::Int64(1),
-                        Value::Int64(2),
-                        Value::Int64(3),
-                    ]),
+                    Value::Vector(vec![Value::Int64(1), Value::Int64(2), Value::Int64(3)]),
                     Value::Vector(vec![
                         Value::String("Hello".to_owned()),
                         Value::String("World".to_owned()),
