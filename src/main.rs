@@ -1,6 +1,7 @@
 use clap::Parser;
 
 mod config;
+mod core;
 mod error;
 mod server;
 
