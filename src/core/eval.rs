@@ -114,12 +114,54 @@ pub fn ttl(args: Vec<String>, store: &mut Store, stream: &mut impl Write) -> any
     return Ok(());
 }
 
+pub fn del(args: Vec<String>, store: &mut Store, stream: &mut impl Write) -> anyhow::Result<()> {
+    let mut count_deleted = 0;
+
+    for key in args {
+        if store.del(key) {
+            count_deleted += 1;
+        }
+    }
+
+    stream.write(&encode(Value::Int32(count_deleted), false))?;
+    return Ok(());
+}
+
+pub fn expire(args: Vec<String>, store: &mut Store, stream: &mut impl Write) -> anyhow::Result<()> {
+    if args.len() <= 1 {
+        return Err(anyhow!(
+            "ERR wrong number of arguments for 'expire' commands"
+        ));
+    }
+
+    let key = &args[0];
+    let ex_duration_sec: i64 = args[1]
+        .parse()
+        .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?;
+
+    match store.get_mut(key.to_string()) {
+        Some(s) => {
+            s.expires_at = Utc::now().timestamp_millis() + ex_duration_sec * 1000;
+        }
+        None => {
+            stream.write(":0\r\n".as_bytes())?;
+            return Ok(());
+        }
+    };
+
+    // 1 if timeout is set
+    stream.write(":1\r\n".as_bytes())?;
+    return Ok(());
+}
+
 pub fn respond(cmd: Command, store: &mut Store, stream: &mut impl Write) -> anyhow::Result<()> {
     return match cmd.cmd.as_str() {
         "PING" => ping(cmd.args, stream),
         "SET" => set(cmd.args, store, stream),
         "GET" => get(cmd.args, store, stream),
         "TTL" => ttl(cmd.args, store, stream),
+        "DEL" => del(cmd.args, store, stream),
+        "EXPIRE" => expire(cmd.args, store, stream),
         _ => ping(cmd.args, stream),
     };
 }

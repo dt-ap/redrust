@@ -141,6 +141,7 @@ pub fn encode(value: Value, simple: bool) -> Vec<u8> {
             return format!("${0}\r\n{1}\r\n", s.len(), s).into_bytes();
         }
         Value::Int64(i) => format!(":{}\r\n", i).into_bytes(),
+        Value::Int32(i) => format!(":{}\r\n", i).into_bytes(),
         _ => RESP_NIL.into(),
     };
 }

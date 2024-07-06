@@ -5,6 +5,7 @@ use std::{
     os::fd::RawFd,
 };
 
+use chrono::{TimeDelta, Utc};
 use libc;
 
 use crate::{
@@ -54,6 +55,9 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
     let max_clients = 20000;
     let mut events = Vec::<libc::epoll_event>::with_capacity(max_clients);
 
+    let cron_frequency = TimeDelta::seconds(1);
+    let mut last_cron_exec_time = Utc::now();
+
     let server_fd = syscall!(socket(
         libc::AF_INET,
         libc::O_NONBLOCK | libc::SOCK_STREAM | libc::SOCK_CLOEXEC,
@@ -100,6 +104,11 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
     ))?;
 
     loop {
+        if Utc::now() > last_cron_exec_time + cron_frequency {
+            store.delete_expired_keys();
+            last_cron_exec_time = Utc::now();
+        }
+
         events.clear();
         let n_events = match syscall!(epoll_wait(
             epoll_fd,
