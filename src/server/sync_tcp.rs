@@ -2,6 +2,7 @@ use std::io;
 
 use std::net::{Shutdown, TcpListener};
 
+use crate::data::store::Store;
 use crate::{
     config::Config,
     core::{cmd::Command, eval, resp::decode_array_string},
@@ -31,8 +32,8 @@ fn respond_error(err: anyhow::Error, stream: &mut impl Stream) -> io::Result<()>
     return stream.write(format!("-{}\r\n", err).as_bytes()).and(Ok(()));
 }
 
-pub fn respond(cmd: Command, stream: &mut impl Stream) -> io::Result<()> {
-    return match eval::respond(cmd, stream) {
+pub fn respond(cmd: Command, store: &mut Store, stream: &mut impl Stream) -> io::Result<()> {
+    return match eval::respond(cmd, store, stream) {
         Ok(_) => Ok(()),
         Err(err) => respond_error(err, stream),
     };
@@ -43,6 +44,8 @@ pub fn run(conf: Config) -> io::Result<()> {
         "Starting a synchronous TCP Server on {0}:{1}",
         conf.host, conf.port
     );
+
+    let mut store = Store::new();
 
     let mut con_clients = 0u8;
 
@@ -76,7 +79,7 @@ pub fn run(conf: Config) -> io::Result<()> {
                 }
             };
 
-            respond(cmd, &mut stream)?;
+            respond(cmd, &mut store, &mut stream)?;
         }
     }
 }

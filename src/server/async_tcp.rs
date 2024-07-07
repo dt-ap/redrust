@@ -10,6 +10,7 @@ use libc;
 use crate::{
     config::Config,
     core::comm::FdComm,
+    data::store::Store,
     server::sync_tcp::{read_command, respond},
     syscall,
 };
@@ -47,6 +48,7 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
         "Starting an asynchronous TCP Server on {0}:{1}",
         conf.host, conf.port
     );
+    let mut store = Store::new();
     let mut con_clients = 0;
 
     let max_clients = 20000;
@@ -152,7 +154,7 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
                         continue;
                     }
                 };
-                respond(cmd, &mut comm)?;
+                respond(cmd, &mut store, &mut comm)?;
             }
         }
     }

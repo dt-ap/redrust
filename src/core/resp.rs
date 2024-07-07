@@ -1,16 +1,13 @@
 use anyhow::anyhow;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Value {
-    Int64(i64),
-    String(String),
-    Vector(Vec<Value>),
-    Empty,
-}
+use crate::common::Value;
 
 type PositionAndValue = (usize, Value);
 
 type Result = anyhow::Result<PositionAndValue>;
+
+pub const RESP_NIL: &[u8] = "$-1\r\n".as_bytes();
+pub const RESP_OK: &[u8] = "+OK\r\n".as_bytes();
 
 fn read_length(data: &[u8]) -> (usize, i32) {
     let mut length = 0_i32;
@@ -135,15 +132,17 @@ pub fn decode(data: &[u8]) -> anyhow::Result<Value> {
 }
 
 pub fn encode(value: Value, simple: bool) -> Vec<u8> {
-    if let Value::String(s) = value {
-        if simple {
-            return format!("+{}\r\n", s).into_bytes();
+    return match value {
+        Value::String(s) => {
+            if simple {
+                return format!("+{}\r\n", s).into_bytes();
+            }
+
+            return format!("${0}\r\n{1}\r\n", s.len(), s).into_bytes();
         }
-
-        return format!("${0}\r\n{1}\r\n", s.len(), s).into_bytes();
-    }
-
-    return vec![];
+        Value::Int64(i) => format!(":{}\r\n", i).into_bytes(),
+        _ => RESP_NIL.into(),
+    };
 }
 
 #[cfg(test)]
