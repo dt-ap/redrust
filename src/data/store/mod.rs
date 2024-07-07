@@ -1,16 +1,18 @@
 use chrono::Utc;
 
-use crate::common::Value;
+use crate::{common::Value, config::Config};
 use std::collections::HashMap;
 
 pub struct Store {
     inner: HashMap<String, StoreValue>,
+    config: Config,
 }
 
 impl Store {
-    pub fn new() -> Store {
+    pub fn new(config: Config) -> Store {
         return Store {
             inner: HashMap::new(),
+            config: config,
         };
     }
 
@@ -36,6 +38,9 @@ impl Store {
     }
 
     pub fn put(&mut self, k: String, v: StoreValue) -> Option<StoreValue> {
+        if self.inner.len() >= self.config.keys_limit as usize {
+            self.evict();
+        }
         return self.inner.insert(k, v);
     }
 
@@ -44,6 +49,7 @@ impl Store {
     }
 }
 
+mod eviction;
 mod expire;
 
 pub struct StoreValue {

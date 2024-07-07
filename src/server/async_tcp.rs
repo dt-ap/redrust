@@ -49,7 +49,7 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
         "Starting an asynchronous TCP Server on {0}:{1}",
         conf.host, conf.port
     );
-    let mut store = Store::new();
+    let mut store = Store::new(conf.clone());
     let mut con_clients = 0;
 
     let max_clients = 20000;

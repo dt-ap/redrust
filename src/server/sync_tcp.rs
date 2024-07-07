@@ -45,7 +45,7 @@ pub fn run(conf: Config) -> io::Result<()> {
         conf.host, conf.port
     );
 
-    let mut store = Store::new();
+    let mut store = Store::new(conf.clone());
 
     let mut con_clients = 0u8;
 
