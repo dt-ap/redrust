@@ -44,9 +44,5 @@ impl Store {
                 break;
             }
         }
-        println!(
-            "deleted the expired but undeleted keys. total keys {}",
-            self.inner.len()
-        );
     }
 }

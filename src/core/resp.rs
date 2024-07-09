@@ -8,6 +8,10 @@ type Result = anyhow::Result<PositionAndValue>;
 
 pub const RESP_NIL: &[u8] = "$-1\r\n".as_bytes();
 pub const RESP_OK: &[u8] = "+OK\r\n".as_bytes();
+pub const RESP_ZERO: &[u8] = ":0\r\n".as_bytes();
+pub const RESP_ONE: &[u8] = ":1\r\n".as_bytes();
+pub const RESP_MINUS_ONE: &[u8] = ":-1\r\n".as_bytes();
+pub const RESP_MINUS_TWO: &[u8] = ":-2\r\n".as_bytes();
 
 fn read_length(data: &[u8]) -> (usize, i32) {
     let mut length = 0_i32;
@@ -93,42 +97,29 @@ pub fn decode_one(data: &[u8]) -> Result {
         b':' => read_i64(data),
         b'$' => read_bulk_string(data),
         b'*' => read_array(data),
-        _ => Ok((0, Value::Empty)),
+        _ => {
+            println!("possible cross protocol scripting attack detected");
+            return Err(anyhow!("possible cross protocol scripting attack detected"));
+        }
     };
 }
 
-pub fn decode_array_string(data: &[u8]) -> anyhow::Result<Vec<String>> {
-    let value = decode(data)?;
-    let vr: Vec<Value>;
-
-    if let Value::Vector(r) = value {
-        vr = r;
-    } else {
-        return Err(anyhow!("Value is not a Vec type"));
-    }
-
-    let len = vr.len();
-    let mut elems: Vec<String> = Vec::with_capacity(len);
-    for i in 0..len {
-        let v = &vr[i];
-
-        if let Value::String(r) = v {
-            elems.push(r.to_string())
-        } else {
-            return Err(anyhow!("Value is not a String type"));
-        }
-    }
-
-    return Ok(elems);
-}
-
-pub fn decode(data: &[u8]) -> anyhow::Result<Value> {
+pub fn decode(data: &[u8]) -> anyhow::Result<Vec<Value>> {
     if data.len() == 0 {
         return Err(anyhow!("No data"));
     }
 
-    let (_, value) = decode_one(data)?;
-    return Ok(value);
+    // Divided by 4 because a command represented by, at least, 4 bytes of data.
+    let mut values = Vec::<Value>::with_capacity(data.len() / 4);
+
+    let mut index = 0;
+    while index < data.len() {
+        let (delta, value) = decode_one(&data[index..])?;
+        index += delta;
+        values.push(value);
+    }
+
+    return Ok(values);
 }
 
 pub fn encode(value: Value, simple: bool) -> Vec<u8> {
@@ -146,6 +137,10 @@ pub fn encode(value: Value, simple: bool) -> Vec<u8> {
     };
 }
 
+pub fn encode_error(error: anyhow::Error) -> Vec<u8> {
+    return format!("-{}\r\n", error).into_bytes();
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -154,8 +149,8 @@ mod tests {
 
     #[test]
     fn test_simple_string_decode() {
-        let cases: HashMap<String, Value> =
-            HashMap::from([("+OK\r\n".to_owned(), Value::String("OK".to_owned()))]);
+        let cases: HashMap<String, Vec<Value>> =
+            HashMap::from([("+OK\r\n".to_owned(), vec![Value::String("OK".to_owned())])]);
 
         for (k, v) in cases.into_iter() {
             let data = decode(k.as_bytes()).unwrap();
@@ -165,9 +160,9 @@ mod tests {
 
     #[test]
     fn test_error() {
-        let cases: HashMap<String, Value> = HashMap::from([(
+        let cases: HashMap<String, Vec<Value>> = HashMap::from([(
             "-Error message\r\n".to_owned(),
-            Value::String("Error message".to_owned()),
+            vec![Value::String("Error message".to_owned())],
         )]);
 
         for (k, v) in cases.into_iter() {
@@ -178,9 +173,9 @@ mod tests {
 
     #[test]
     fn test_int_64() {
-        let cases: HashMap<String, Value> = HashMap::from([
-            (":0\r\n".to_owned(), Value::Int64(0)),
-            (":1000\r\n".to_owned(), Value::Int64(1000)),
+        let cases: HashMap<String, Vec<Value>> = HashMap::from([
+            (":0\r\n".to_owned(), vec![Value::Int64(0)]),
+            (":1000\r\n".to_owned(), vec![Value::Int64(1000)]),
         ]);
 
         for (k, v) in cases.into_iter() {
@@ -191,28 +186,32 @@ mod tests {
 
     #[test]
     fn test_array_decode() {
-        let cases: HashMap<String, Value> = HashMap::from([
-            ("*0\r\n".to_owned(), Value::Vector([].to_vec())),
+        let cases: HashMap<String, Vec<Value>> = HashMap::from([
+            ("*0\r\n".to_owned(), vec![Value::Vector([].to_vec())]),
             (
                 "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n".to_owned(),
-                Value::Vector(vec![
+                vec![Value::Vector(vec![
                     Value::String("hello".to_owned()),
                     Value::String("world".to_owned()),
-                ]),
+                ])],
             ),
             (
                 "*3\r\n:1\r\n:2\r\n:3\r\n".to_owned(),
-                Value::Vector(vec![Value::Int64(1), Value::Int64(2), Value::Int64(3)]),
+                vec![Value::Vector(vec![
+                    Value::Int64(1),
+                    Value::Int64(2),
+                    Value::Int64(3),
+                ])],
             ),
             (
                 "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n".to_owned(),
-                Value::Vector(vec![
+                vec![Value::Vector(vec![
                     Value::Vector(vec![Value::Int64(1), Value::Int64(2), Value::Int64(3)]),
                     Value::Vector(vec![
                         Value::String("Hello".to_owned()),
                         Value::String("World".to_owned()),
                     ]),
-                ]),
+                ])],
             ),
         ]);
 

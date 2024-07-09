@@ -155,7 +155,7 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
                 };
             } else {
                 let mut comm = FdComm { fd: ev.u64 as i32 };
-                let cmd = match read_command(&mut comm) {
+                let cmds = match read_command(&mut comm) {
                     Ok(res) => res,
                     Err(_) => {
                         syscall!(close(ev.u64 as i32))?;
@@ -163,7 +163,7 @@ pub fn run(conf: Config) -> anyhow::Result<()> {
                         continue;
                     }
                 };
-                respond(cmd, &mut store, &mut comm)?;
+                respond(cmds, &mut store, &mut comm)?;
             }
         }
     }
