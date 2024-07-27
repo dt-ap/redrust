@@ -17,4 +17,7 @@ pub struct Config {
 
     #[arg(long, default_value = "simple-first")]
     pub eviction_strategy: String,
+
+    #[arg(long, default_value = "./redrust-master.aof")]
+    pub aof_file: String,
 }

@@ -51,7 +51,9 @@ impl Store {
 
 mod eviction;
 mod expire;
+mod aof;
 
+#[derive(Clone)]
 pub struct StoreValue {
     pub value: Value,
     pub expires_at: i64,

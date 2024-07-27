@@ -146,6 +146,11 @@ pub fn expire(args: Vec<String>, store: &mut Store) -> Vec<u8> {
     return RESP_ONE.to_vec();
 }
 
+fn bg_rewrite_aof(_args: Vec<String>, store: &mut Store) -> Vec<u8> {
+    store.dump_all_aof();
+    return RESP_OK.to_vec();
+}
+
 pub fn respond(cmds: Commands, store: &mut Store, stream: &mut impl Write) -> io::Result<()> {
     let mut stream = BufWriter::new(stream);
 
@@ -157,6 +162,7 @@ pub fn respond(cmds: Commands, store: &mut Store, stream: &mut impl Write) -> io
             "TTL" => ttl(cmd.args, store),
             "DEL" => del(cmd.args, store),
             "EXPIRE" => expire(cmd.args, store),
+            "BGREWRITEAOF" => bg_rewrite_aof(cmd.args, store),
             _ => ping(cmd.args),
         };
         stream.write(&buf)?;

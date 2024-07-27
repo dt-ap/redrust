@@ -122,6 +122,10 @@ pub fn decode(data: &[u8]) -> anyhow::Result<Vec<Value>> {
     return Ok(values);
 }
 
+fn format_string(s: String) -> String {
+    return format!("${0}\r\n{1}\r\n", s.len(), s);
+}
+
 pub fn encode(value: Value, simple: bool) -> Vec<u8> {
     return match value {
         Value::String(s) => {
@@ -129,10 +133,19 @@ pub fn encode(value: Value, simple: bool) -> Vec<u8> {
                 return format!("+{}\r\n", s).into_bytes();
             }
 
-            return format!("${0}\r\n{1}\r\n", s.len(), s).into_bytes();
+            return format_string(s).into_bytes();
         }
         Value::Int64(i) => format!(":{}\r\n", i).into_bytes(),
         Value::Int32(i) => format!(":{}\r\n", i).into_bytes(),
+        Value::VectorString(vs) => format!(
+            "*{0}\r\n{1}",
+            vs.len(),
+            vs.iter()
+                .map(|s| format_string(s.to_string()))
+                .collect::<Vec<String>>()
+                .join("")
+        )
+        .into_bytes(),
         _ => RESP_NIL.into(),
     };
 }

@@ -6,6 +6,7 @@ pub enum Value {
     Int32(i32),
     String(String),
     Vector(Vec<Value>),
+    VectorString(Vec<String>),
     Empty,
 }
 
@@ -15,6 +16,7 @@ impl Value {
             Value::String(s) => s.to_owned(),
             Value::Int64(i) => i.to_string(),
             Value::Int32(i) => i.to_string(),
+            Value::VectorString(vs) => vs.join(", "),
             _ => "".to_string(),
         };
     }
