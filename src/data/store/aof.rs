@@ -5,10 +5,10 @@ use std::{
 
 use crate::{common::Value, core::resp::encode};
 
-use super::{Store, StoreValue};
+use super::{Store, StoreObject};
 
 impl Store {
-    fn dump_key(&mut self, file: &mut File, key: String, store_value: StoreValue) {
+    fn dump_key(&mut self, file: &mut File, key: String, store_value: StoreObject) {
         let cmd = format!("SET {0} {1}", key, store_value.value);
         let tokens = cmd.split_whitespace().map(str::to_string).collect();
 
@@ -25,7 +25,7 @@ impl Store {
         };
         println!("rewriting AOF file at {0}", self.config.aof_file);
 
-        let mut tuples: Vec<(String, StoreValue)> = Vec::new();
+        let mut tuples: Vec<(String, StoreObject)> = Vec::new();
         for (k, sv) in self.inner.iter() {
             tuples.push((k.clone(), sv.clone()));
         }
